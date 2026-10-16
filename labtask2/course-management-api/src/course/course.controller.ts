@@ -1,37 +1,74 @@
-import { Controller, Delete, Get, Param, Patch, Post, Put } from '@nestjs/common';
+import {
+  BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put,
+  UploadedFile, UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import { CourseService } from './course.service.js';
+import { CreateCourseDto } from './dto/create-course.dto.js';
+import { UpdateCourseDto } from './dto/update-course.dto.js';
+
 
 @Controller('course')
 export class CourseController {
   constructor(private readonly courseService: CourseService) {}
 
   @Get()
-  getAllCourses(): string{
+  getAllCourses() {
     return this.courseService.getAllCourses();
   }
 
   @Get(':id')
-  getCoursesById(@Param('id') id: string): string{
+  getCourseById(@Param('id') id: string) {
     return this.courseService.getCourseById(id);
   }
 
   @Post()
-  createCourse(): string{
-    return this.courseService.createCourse();
+  createCourse(@Body() dto: CreateCourseDto) {
+    return this.courseService.createCourse(dto);
   }
 
   @Put(':id')
-  updateCourse(@Param('id') id: string): string{
-    return this.courseService.updateCourse(id);
+  updateCourse(@Param('id') id: string, @Body() dto: UpdateCourseDto) {
+    return this.courseService.updateCourse(id, dto);
   }
 
   @Patch(':id')
-  patchCourse(@Param('id') id: string): string{
-    return this.courseService.patchCourse(id);
+  patchCourse(@Param('id') id: string, @Body() dto: UpdateCourseDto) {
+    return this.courseService.patchCourse(id, dto);
   }
 
   @Delete(':id')
-  deleteCourse(@Param('id') id: string): string{
+  deleteCourse(@Param('id') id: string) {
     return this.courseService.deleteCourse(id);
+  }
+
+  @Post(':id/upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: './uploads',
+        filename: (req, file, cb) => {
+          cb(null, `${Date.now()}-${file.originalname}`);
+        },
+      }),
+      fileFilter: (req, file, cb) => {
+        const allowed = ['.jpg', '.jpeg', '.png', '.pdf'];
+        const ext = extname(file.originalname).toLowerCase();
+        if (allowed.includes(ext)) {
+          cb(null, true);
+        } else {
+          cb(new BadRequestException('Only .jpg, .jpeg, .png and .pdf files are allowed'), false);
+        }
+      },
+      limits: { fileSize: 2 * 1024 * 1024 }, 
+    }),
+  )
+  uploadMaterial(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+    return this.courseService.uploadCourseMaterial(id, file);
   }
 }
